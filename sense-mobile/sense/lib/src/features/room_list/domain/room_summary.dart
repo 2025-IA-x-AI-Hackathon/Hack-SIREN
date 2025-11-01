@@ -7,6 +7,7 @@ class RoomSummary {
   final int unreadCount;
   final DateTime lastTs;
   final DateTime startedAt;
+  final String? riskLevel;
 
   const RoomSummary({
     required this.roomId,
@@ -17,5 +18,6 @@ class RoomSummary {
     required this.unreadCount,
     required this.lastTs,
     required this.startedAt,
+    this.riskLevel,
   });
 }

@@ -1,59 +1,142 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
+import 'package:sense/src/features/message/domain/entities/message.dart';
+import 'package:sense/src/features/message/provider/room_messages_provider.dart';
 import 'package:sense/src/features/room_list/domain/room_summary.dart';
 
-// 방 요약 리스트 Provider
-// 정렬: active 우선(true 먼저), 그 다음 최근 lastTs 순
-final roomListProvider = Provider<List<RoomSummary>>((ref) {
-  List<RoomSummary> list = _mock();
-  list.sort((a, b) {
-    if (a.active != b.active) return a.active ? -1 : 1;
-    return b.lastTs.compareTo(a.lastTs);
-  });
-  return list;
-});
+class RoomListNotifier extends StateNotifier<List<RoomSummary>> {
+  RoomListNotifier(this.allMessages) : super([]) {
+    _updateFromMessages();
+  }
+  final List<Message> allMessages;
 
-List<RoomSummary> _mock() {
-  final now = DateTime.now();
-  return [
-    RoomSummary(
-      roomId: 'alert-fire-001',
-      title: '대규모 산불',
-      type: 'fire',
-      active: true,
-      lastPreviewText: '주민 대피 명령 발령. 대피소 위치를 확인해주세요.',
-      unreadCount: 3,
-      lastTs: now.subtract(const Duration(minutes: 2)),
-      startedAt: now.subtract(const Duration(hours: 1)),
-    ),
-    RoomSummary(
-      roomId: 'alert-earthquake-001',
-      title: '규모 4.5 지진',
-      type: 'earthquake',
-      active: true,
-      lastPreviewText: '건물 붕괴 위험. 안전한 곳으로 대피하세요.',
-      unreadCount: 2,
-      lastTs: now.subtract(const Duration(minutes: 30)),
-      startedAt: now.subtract(const Duration(hours: 1)),
-    ),
-    RoomSummary(
-      roomId: 'alert-flood-001',
-      title: '호우로 인한 하천 범람',
-      type: 'flood',
-      active: true,
-      lastPreviewText: '저지대 주민 즉시 대피 필요.',
-      unreadCount: 1,
-      lastTs: now.subtract(const Duration(hours: 2)),
-      startedAt: now.subtract(const Duration(hours: 3)),
-    ),
-    RoomSummary(
-      roomId: 'alert-power-001',
-      title: '대규모 정전',
-      type: 'power_outage',
-      active: false,
-      lastPreviewText: '3시간 내 복구 예상. 전력 절약 부탁드립니다.',
-      unreadCount: 0,
-      lastTs: DateTime(2023, 10, 26),
-      startedAt: DateTime(2023, 10, 26),
-    ),
-  ];
+  void refreshFromProvider(List<Message> newMessages) {
+    _updateFromMessages(newMessages);
+  }
+
+  void _updateFromMessages([List<Message>? messages]) {
+    final messagesToUse = messages ?? allMessages;
+    final Map<String, List<Message>> messagesByRoom = {};
+    for (final message in messagesToUse) {
+      messagesByRoom.putIfAbsent(message.roomId, () => []).add(message);
+    }
+
+    final List<RoomSummary> summaries = [];
+    for (final entry in messagesByRoom.entries) {
+      final roomId = entry.key;
+      final messages = entry.value;
+      if (messages.isEmpty) continue;
+      messages.sort((a, b) => a.ts.compareTo(b.ts));
+      final lastMessage = messages.last;
+      final startedAt = messages.first.ts;
+      final lastTs = lastMessage.ts;
+      Message? latestHazard;
+      for (int i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].kind == MsgKind.hazard) {
+          latestHazard = messages[i];
+          break;
+        }
+      }
+
+      String title;
+      String type;
+      String? riskLevel;
+      String? levelToRiskLevel(String? level) {
+        if (level == null) return null;
+        switch (level.toLowerCase()) {
+          case 'severe':
+          case 'critical':
+          case 'red':
+            return '위기';
+          case 'warning':
+            return '경보';
+          case 'watch':
+          case 'advisory':
+            return '주의';
+          default:
+            return null;
+        }
+      }
+
+      if (latestHazard != null && latestHazard.payload != null) {
+        title =
+            latestHazard.payload!['title'] as String? ??
+            latestHazard.text ??
+            '미지정';
+        type = latestHazard.payload!['type'] as String? ?? 'unspecified';
+        riskLevel =
+            latestHazard.payload!['riskLevel'] as String? ??
+            levelToRiskLevel(latestHazard.payload!['level'] as String?);
+      } else {
+        title = '미지정';
+        type = 'unspecified';
+        riskLevel = null;
+      }
+
+      String lastPreviewText = '';
+      if (lastMessage.text != null) {
+        lastPreviewText = lastMessage.text!;
+      } else if (lastMessage.kind == MsgKind.guideline &&
+          lastMessage.payload?['bullets'] != null) {
+        final bullets = lastMessage.payload!['bullets'] as List?;
+        if (bullets != null && bullets.isNotEmpty) {
+          lastPreviewText = bullets[0].toString();
+        }
+      }
+
+      final now = DateTime.now();
+      final isActive = now.difference(lastTs).inHours < 24;
+      final unreadCount = 0;
+      summaries.add(
+        RoomSummary(
+          roomId: roomId,
+          title: title,
+          type: type,
+          active: isActive,
+          lastPreviewText: lastPreviewText,
+          unreadCount: unreadCount,
+          lastTs: lastTs,
+          startedAt: startedAt,
+          riskLevel: riskLevel,
+        ),
+      );
+    }
+    state = summaries;
+    _sort();
+  }
+
+  void updateMessages(List<Message> newMessages) {
+    _updateFromMessages(newMessages);
+  }
+
+  void addMessage(Message message, dynamic ref) {
+    ref.read(allMessagesProvider.notifier).addMessage(message);
+  }
+
+  void _sort() {
+    state = [...state];
+    state.sort((a, b) {
+      if (a.active != b.active) return a.active ? -1 : 1;
+      return b.lastTs.compareTo(a.lastTs);
+    });
+  }
+
+  void addRoom(RoomSummary room) {
+    state = [...state, room];
+    _sort();
+  }
+
+  void removeRoom(String roomId, dynamic ref) {
+    ref.read(allMessagesProvider.notifier).removeMessagesByRoomId(roomId);
+    allMessages.removeWhere((msg) => msg.roomId == roomId);
+  }
 }
+
+final roomListProvider =
+    StateNotifierProvider<RoomListNotifier, List<RoomSummary>>((ref) {
+      final allMessages = ref.watch(allMessagesProvider);
+      final notifier = RoomListNotifier(allMessages);
+      ref.listen<List<Message>>(allMessagesProvider, (previous, next) {
+        notifier.refreshFromProvider(next);
+      });
+      return notifier;
+    });

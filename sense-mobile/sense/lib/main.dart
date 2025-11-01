@@ -16,7 +16,6 @@ class MyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final appInit = ref.watch(appInitProvider);
-
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       home: appInit.when(
@@ -31,7 +30,6 @@ class MyApp extends ConsumerWidget {
 
 class MainApp extends ConsumerWidget {
   const MainApp({super.key});
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);

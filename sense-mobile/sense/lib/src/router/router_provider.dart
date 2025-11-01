@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sense/src/features/incident/presentation/incident_screen.dart';
 import 'package:sense/src/features/room_list/presentation/room_list_page.dart';
 import 'package:sense/src/features/splash/splash_screen.dart';
 
@@ -15,9 +16,7 @@ class MyNavigatorObserver extends NavigatorObserver {
 }
 
 final routerNavigatorKey = GlobalKey<NavigatorState>();
-
 final unauthorizedRoutes = [];
-
 final routerProvider = Provider((ref) {
   return GoRouter(
     debugLogDiagnostics: true,
@@ -38,9 +37,17 @@ final routerProvider = Provider((ref) {
         },
       ),
       GoRoute(
-        path: Routes.roomList,
+        path: '/rooms',
         builder: (context, state) => const RoomListPage(),
-        routes: [],
+        routes: [
+          GoRoute(
+            path: ':roomId',
+            builder: (context, state) {
+              final roomId = state.pathParameters['roomId']!;
+              return IncidentScreen(roomId: roomId);
+            },
+          ),
+        ],
       ),
     ],
   );
