@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:sense/src/features/message/data/dto/message_dto.dart';
 
 class MessageApi {
@@ -12,6 +13,7 @@ class MessageApi {
   }
 
   Future<void> send(MessageDto dto) async {
+    debugPrint('Sending message to server: ${dto.toJson()}');
     final _ = await Future.value(dto.toJson());
   }
 }

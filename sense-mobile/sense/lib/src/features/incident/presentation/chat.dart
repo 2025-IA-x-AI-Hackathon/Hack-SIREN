@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:geolocator/geolocator.dart';
 
 import 'package:sense/src/core/palette/palette.dart';
 import 'package:sense/src/core/provider/app_state_provider.dart';
@@ -13,6 +14,7 @@ import 'package:sense/src/features/message/data/dto/message_dto.dart';
 import 'package:sense/src/features/message/domain/entities/message.dart';
 import 'package:sense/src/features/message/provider/room_messages_provider.dart';
 import 'package:sense/src/features/room_list/provider/room_list_provider.dart';
+import 'package:sense/src/features/estimator/provider/estimation_provider.dart';
 
 class Chat extends ConsumerStatefulWidget {
   const Chat({super.key, required this.roomId});
@@ -67,13 +69,41 @@ class _ChatState extends ConsumerState<Chat> {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
 
+    Map<String, dynamic>? payload;
+    try {
+      LocationPermission perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+      } else {
+        final position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+        );
+        final estimationResult = ref.read(estimationProvider);
+
+        payload = {
+          'latitude': position.latitude,
+          'longitude': position.longitude,
+        };
+
+        if (estimationResult != null) {
+          payload['estimatedFloor'] = estimationResult.estimatedFloor;
+        }
+      }
+    } catch (e) {
+      debugPrint('Failed to get location or estimated floor: $e');
+    }
+
     final now = DateTime.now();
     final message = Message(
       id: 'msg-${now.millisecondsSinceEpoch}',
       roomId: widget.roomId,
       kind: MsgKind.chat,
       text: text,
-      payload: null,
+      payload: payload,
       ts: now,
       mine: true,
     );
@@ -83,6 +113,7 @@ class _ChatState extends ConsumerState<Chat> {
       final messageApi = MessageApi(dio);
       final messageDto = MessageDto.fromDomain(message);
       await messageApi.send(messageDto);
+      debugPrint('Message sent to server');
     } catch (e) {
       debugPrint('Failed to send message to server: $e');
     }
@@ -136,7 +167,6 @@ class _ChatState extends ConsumerState<Chat> {
       _scrollToBottom();
     }
 
-    // 나중에 사용할 항목, 처리 필요
     final hazardMessages =
         messages.where((m) => m.kind == MsgKind.hazard).toList()
           ..sort((a, b) => b.ts.compareTo(a.ts));
