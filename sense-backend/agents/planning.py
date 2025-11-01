@@ -1,7 +1,7 @@
 """PlanningAgent: 분석 계획 수립"""
 from typing import Dict, Any
-from backend.llm import llm_client
-from backend.types import AgentStateModel
+from llm import llm_client
+from types import AgentStateModel
 
 
 class PlanningAgent:

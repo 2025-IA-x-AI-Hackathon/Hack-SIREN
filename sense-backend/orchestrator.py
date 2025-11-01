@@ -2,8 +2,8 @@
 from typing import Dict, Any, List, Optional
 from langgraph.graph import StateGraph, END
 
-from backend.types import AgentState, AgentStateModel, MessageType
-from backend.agents import ProfileAgent, PlanningAgent, AnalystAgent, AdvisorAgent
+from types import AgentState, AgentStateModel, MessageType
+from agents import ProfileAgent, PlanningAgent, AnalystAgent, AdvisorAgent
 
 
 class Orchestrator:

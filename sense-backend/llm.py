@@ -3,7 +3,7 @@ import os
 import requests
 from typing import Optional, Dict, Any
 
-from backend.config import Config
+from config import Config
 
 
 class LLMClient:

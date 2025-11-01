@@ -1,7 +1,7 @@
 """ProfileAgent: 사용자 프로필 및 상황 분석"""
 from typing import Dict, Any
-from backend.llm import llm_client
-from backend.types import AgentStateModel, MessageType
+from llm import llm_client
+from types import AgentStateModel, MessageType
 
 
 class ProfileAgent:

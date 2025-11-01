@@ -9,7 +9,7 @@ sys.path.insert(0, project_root)
 
 if __name__ == "__main__":
     import uvicorn
-    from backend.config import Config
+    from config import Config
     
     print(f"Starting SENSE API server...")
     print(f"Host: {Config.API_HOST}")
@@ -17,7 +17,7 @@ if __name__ == "__main__":
     print(f"LLM Provider: {Config.LLM_PROVIDER}")
     
     uvicorn.run(
-        "backend.api:app",
+        "api:app",
         host=Config.API_HOST,
         port=Config.API_PORT,
         reload=True,

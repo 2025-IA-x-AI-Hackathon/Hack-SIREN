@@ -4,9 +4,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from backend.orchestrator import orchestrator
-from backend.types import MessageType, AgentStateModel
-from backend.db import db_manager
+from orchestrator import orchestrator
+from types import MessageType, AgentStateModel
+from db import db_manager
 
 
 # 요청/응답 모델
@@ -322,10 +322,10 @@ async def delete_conversation(conversation_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-    from backend.config import Config
+    from config import Config
     
     uvicorn.run(
-        "backend.api:app",
+        "api:app",
         host=Config.API_HOST,
         port=Config.API_PORT,
         reload=True

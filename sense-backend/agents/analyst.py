@@ -1,9 +1,9 @@
 """AnalystAgent: RAG 기반 정보 분석"""
 from typing import Dict, Any
-from backend.llm import llm_client
-from backend.db import db_manager
-from backend.rag import hybrid_rag
-from backend.types import AgentStateModel
+from llm import llm_client
+from db import db_manager
+from rag import hybrid_rag
+from types import AgentStateModel
 
 
 class AnalystAgent:

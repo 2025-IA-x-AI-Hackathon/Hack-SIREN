@@ -4,7 +4,7 @@ from neo4j import GraphDatabase, Driver
 import chromadb
 from chromadb.config import Settings
 
-from backend.config import Config
+from config import Config
 
 # ChromaDB 타입 힌트
 # ChromaDB 버전에 따라 타입 위치가 다를 수 있으므로 Any로 처리

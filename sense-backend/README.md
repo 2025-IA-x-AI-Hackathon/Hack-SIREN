@@ -22,7 +22,7 @@
 
 ### 1. 의존성 설치
 ```bash
-pip install -r ../requirements.txt
+pip install -r requirements.txt
 ```
 
 ### 2. 환경 변수 설정 (.env)
@@ -72,10 +72,10 @@ ollama pull qwen3:4b
 ### API 서버 실행
 ```bash
 # 방법 1: 직접 실행
-python -m backend.api
+python -m api
 
 # 방법 2: uvicorn 사용
-uvicorn backend.api:app --host 0.0.0.0 --port 8000 --reload
+uvicorn api:app --host 0.0.0.0 --port 8000 --reload
 
 # 방법 3: run_server.py 사용 (프로젝트 루트에서)
 python run_server.py

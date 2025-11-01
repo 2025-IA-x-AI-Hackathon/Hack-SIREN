@@ -2,10 +2,10 @@
 from typing import Dict, Any, Optional, List
 from neo4j import Session
 
-from backend.db import db_manager
-from backend.llm import llm_client
-from backend.config import Config
-from backend.types import RAGResults
+from db import db_manager
+from llm import llm_client
+from config import Config
+from types import RAGResults
 
 
 class HybridRAG:

@@ -1,7 +1,7 @@
 """AdvisorAgent: 행동 지침 제시 (immediate/next/caution)"""
 from typing import Dict, Any, List
-from backend.llm import llm_client
-from backend.types import AgentStateModel
+from llm import llm_client
+from types import AgentStateModel
 
 
 class AdvisorAgent:
@@ -21,12 +21,12 @@ class AdvisorAgent:
         # RAG 결과 요약
         graph_text = ""
         if graph_results:
-            from backend.rag import hybrid_rag
+            from rag import hybrid_rag
             graph_text = hybrid_rag.format_graph_results(graph_results, max_length=1000)
         
         vector_text = ""
         if vector_results:
-            from backend.rag import hybrid_rag
+            from rag import hybrid_rag
             vector_text = hybrid_rag.format_vector_results(vector_results, max_length=1000)
         
         prompt = f"""
