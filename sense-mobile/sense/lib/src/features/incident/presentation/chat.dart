@@ -189,7 +189,7 @@ class _ChatState extends ConsumerState<Chat> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildAlertHeader(message),
-            const SizedBox(height: 24),
+            const SizedBox(height: 12),
             _buildDetailContentSection(message),
           ],
         );
@@ -209,40 +209,15 @@ class _ChatState extends ConsumerState<Chat> {
   Widget _buildAlertHeader(Message message) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.transparent,
+        border: Border.all(color: Palette.onGoing, width: 2),
+        color: Palette.onGoing.withOpacity(0.3),
         borderRadius: BorderRadius.circular(8),
       ),
-      padding: EdgeInsets.zero,
+      margin: const EdgeInsets.symmetric(vertical: 0),
+      padding: EdgeInsets.symmetric(vertical: 16, horizontal: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Palette.onGoing,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.warning_amber_rounded,
-                  color: Palette.textPrimary,
-                  size: 14,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '수장 필요',
-                  style: const TextStyle(
-                    color: Palette.textPrimary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
           Text(
             message.text ?? '재난 발생',
             style: const TextStyle(
@@ -252,13 +227,15 @@ class _ChatState extends ConsumerState<Chat> {
               height: 1.3,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            '발생 시각: ${_formatDateTime(message.ts)}',
-            style: TextStyle(
-              color: Palette.textSecondary,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
+          SizedBox(
+            width: double.infinity,
+            child: Text(
+              _formatDateTime(message.ts),
+              style: TextStyle(
+                color: Palette.textSecondary,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],

@@ -30,6 +30,6 @@ class AppInitResult {
 final appInitProvider = FutureProvider<AppInitResult>((ref) async {
   final dio = ref.read(dioProvider);
   final userId = await ref.read(userIdStoreProvider).getOrCreate();
-
+  await Future.delayed(const Duration(seconds: 2));
   return AppInitResult(userId: userId);
 });
