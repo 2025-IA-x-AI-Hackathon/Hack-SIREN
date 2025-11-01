@@ -22,7 +22,6 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     final now = DateTime.now();
     final newRoomId = 'chat-${const Uuid().v4()}';
 
-    // 상태 업데이트가 완료될 때까지 약간의 지연 후 네비게이션
     Future.microtask(() {
       if (context.mounted) {
         context.push('/rooms/$newRoomId');
@@ -30,19 +29,14 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     });
   }
 
-  void _handleTestStart(BuildContext context) {
+  void _handleTestStart(BuildContext cotext) {
     HapticFeedback.mediumImpact();
-
     final now = DateTime.now();
     final newRoomId = 'chat-${const Uuid().v4()}';
-
-    // 테스트 메시지 텍스트 설정을 위한 Provider
     final testMessageText =
         '2025-11-02 15:00 서울특별시 동남쪽 2km 지역 M6.3 지진/낙하물,여진주의 국민재난안전포털 참고대응 Earthquake[기상청]';
     ref.read(initialChatMessageProvider(newRoomId).notifier).state =
         testMessageText;
-
-    // 상태 업데이트가 완료될 때까지 약간의 지연 후 네비게이션
     Future.microtask(() {
       if (context.mounted) {
         context.push('/rooms/$newRoomId');
@@ -54,7 +48,6 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     final body = alertData.body;
     if (body.isEmpty) return null;
 
-    // 재난 유형 파싱
     String type = 'unspecified';
     if (body.contains('지진') || body.contains('진도')) {
       type = 'earthquake';
@@ -72,7 +65,6 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
       type = 'power_outage';
     }
 
-    // 위험 수준 파싱
     String? riskLevel;
     if (body.contains('위기') || body.contains('긴급') || body.contains('즉시')) {
       riskLevel = '위기';
@@ -81,11 +73,9 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     } else if (body.contains('주의')) {
       riskLevel = '주의';
     } else {
-      // 기본값은 경보
       riskLevel = '경보';
     }
 
-    // 제목 추출
     String title = _extractTitle(body, type);
 
     return {
@@ -98,7 +88,6 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
   }
 
   String _extractTitle(String body, String type) {
-    // 첫 줄 추출 시도
     final lines = body
         .split('\n')
         .where((line) => line.trim().isNotEmpty)
@@ -111,7 +100,6 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
       return firstLine.substring(0, 50);
     }
 
-    // 타입별 기본 제목
     switch (type) {
       case 'earthquake':
         final magnitudeMatch = RegExp(r'규모\s*([0-9.]+)').firstMatch(body);
