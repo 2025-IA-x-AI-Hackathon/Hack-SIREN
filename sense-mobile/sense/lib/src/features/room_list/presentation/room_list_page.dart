@@ -4,12 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sense/src/core/palette/palette.dart';
 import 'package:sense/src/features/alert/domain/disaster_alert.dart' as alert;
+import 'package:sense/src/features/estimator/view/widgets/live_floor_badge.dart';
 import 'package:sense/src/features/incident/provider/incident_providers.dart';
-import 'package:sense/src/features/message/domain/entities/message.dart';
 import 'package:sense/src/features/room_list/provider/room_list_provider.dart';
 import 'package:uuid/uuid.dart';
-
-enum FilterType { all, earthquake, fire, war, unspecified }
 
 class RoomListPage extends ConsumerStatefulWidget {
   const RoomListPage({super.key});
@@ -19,8 +17,6 @@ class RoomListPage extends ConsumerStatefulWidget {
 }
 
 class _RoomListPageState extends ConsumerState<RoomListPage> {
-  FilterType _selectedFilter = FilterType.all;
-
   void _handleNewChat(BuildContext context) {
     HapticFeedback.mediumImpact();
     final now = DateTime.now();
@@ -153,41 +149,6 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
   Widget build(BuildContext context) {
     final rooms = ref.watch(roomListProvider);
     final allAlerts = rooms.map((room) {
-      DisasterType type;
-      Color typeColor;
-      IconData icon;
-
-      switch (room.type) {
-        case 'fire':
-          type = DisasterType.fire;
-          typeColor = Colors.red;
-          icon = Icons.local_fire_department_outlined;
-          break;
-        case 'earthquake':
-          type = DisasterType.earthquake;
-          typeColor = Colors.orange;
-          icon = Icons.vibration_outlined;
-          break;
-        case 'war':
-          type = DisasterType.war;
-          typeColor = Colors.purple;
-          icon = Icons.warning_outlined;
-          break;
-        case 'unspecified':
-          type = DisasterType.unspecified;
-          typeColor = Palette.onGoing;
-          icon = Icons.help_outline;
-          break;
-        case 'flood':
-        case 'power_outage':
-        case 'chat':
-        default:
-          type = DisasterType.unspecified;
-          typeColor = Palette.onGoing;
-          icon = Icons.help_outline;
-          break;
-      }
-
       final now = DateTime.now();
       final difference = now.difference(room.lastTs);
       String timestamp;
@@ -208,9 +169,6 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
 
       return DisasterAlert(
         roomId: room.roomId,
-        type: type,
-        typeColor: typeColor,
-        icon: icon,
         title: room.title,
         location: room.type == 'unspecified' ? '대화방' : '위치 정보',
         timestamp: timestamp,
@@ -227,10 +185,19 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
       );
     }).toList();
 
-    final filteredAlerts = _filterAlerts(allAlerts, _selectedFilter);
-
     return Scaffold(
-      backgroundColor: const Color(0xFF171a21),
+      backgroundColor: Palette.background,
+      appBar: AppBar(
+        backgroundColor: Palette.background,
+        title: const Text('재난 알림 목록'),
+        titleTextStyle: TextStyle(
+          color: Palette.textPrimary,
+          fontWeight: FontWeight.w700,
+          fontSize: 16,
+        ),
+        centerTitle: true,
+        actions: [LiveFloorBadge(compact: true)],
+      ),
       body: SafeArea(
         child: Stack(
           children: [
@@ -240,83 +207,17 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            _FilterChip(
-                              label: '전체',
-                              isActive: _selectedFilter == FilterType.all,
-                              onTap: () {
-                                setState(() {
-                                  _selectedFilter = FilterType.all;
-                                });
-                              },
-                            ),
-                            const SizedBox(width: 8),
-                            _FilterChip(
-                              label: '지진',
-                              isActive:
-                                  _selectedFilter == FilterType.earthquake,
-                              onTap: () {
-                                setState(() {
-                                  _selectedFilter = FilterType.earthquake;
-                                });
-                              },
-                            ),
-                            const SizedBox(width: 8),
-                            _FilterChip(
-                              label: '화재',
-                              isActive: _selectedFilter == FilterType.fire,
-                              onTap: () {
-                                setState(() {
-                                  _selectedFilter = FilterType.fire;
-                                });
-                              },
-                            ),
-                            const SizedBox(width: 8),
-                            _FilterChip(
-                              label: '전쟁',
-                              isActive: _selectedFilter == FilterType.war,
-                              onTap: () {
-                                setState(() {
-                                  _selectedFilter = FilterType.war;
-                                });
-                              },
-                            ),
-                            const SizedBox(width: 8),
-                            _FilterChip(
-                              label: '미지정',
-                              isActive:
-                                  _selectedFilter == FilterType.unspecified,
-                              onTap: () {
-                                setState(() {
-                                  _selectedFilter = FilterType.unspecified;
-                                });
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
                     Expanded(
                       child: ListView.separated(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
-                          vertical: 12,
+                          vertical: 6,
                         ),
-                        itemCount: filteredAlerts.length,
+                        itemCount: allAlerts.length,
                         separatorBuilder: (context, index) =>
                             const SizedBox(height: 12),
                         itemBuilder: (context, index) {
-                          return _DisasterAlertCard(
-                            alert: filteredAlerts[index],
-                          );
+                          return _DisasterAlertCard(alert: allAlerts[index]);
                         },
                       ),
                     ),
@@ -376,38 +277,10 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
       ),
     );
   }
-
-  List<DisasterAlert> _filterAlerts(
-    List<DisasterAlert> alerts,
-    FilterType filter,
-  ) {
-    if (filter == FilterType.all) {
-      return alerts;
-    }
-    return alerts.where((alert) {
-      switch (filter) {
-        case FilterType.earthquake:
-          return alert.type == DisasterType.earthquake;
-        case FilterType.fire:
-          return alert.type == DisasterType.fire;
-        case FilterType.war:
-          return alert.type == DisasterType.war;
-        case FilterType.unspecified:
-          return alert.type == DisasterType.unspecified;
-        default:
-          return true;
-      }
-    }).toList();
-  }
 }
-
-enum DisasterType { fire, earthquake, war, unspecified }
 
 class DisasterAlert {
   final String roomId;
-  final DisasterType type;
-  final Color typeColor;
-  final IconData icon;
   final String title;
   final String location;
   final String timestamp;
@@ -418,9 +291,6 @@ class DisasterAlert {
 
   DisasterAlert({
     required this.roomId,
-    required this.type,
-    required this.typeColor,
-    required this.icon,
     required this.title,
     required this.location,
     required this.timestamp,
@@ -429,45 +299,6 @@ class DisasterAlert {
     required this.status,
     required this.occurredAt,
   });
-}
-
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({
-    required this.label,
-    required this.isActive,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool isActive;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final backgroundColor = isActive
-        ? const Color(0xFFf59e0b)
-        : const Color(0xFF374151);
-    final textColor = isActive ? Colors.white : const Color(0xFFd1d5db);
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: textColor,
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class _DisasterAlertCard extends StatelessWidget {
@@ -518,20 +349,6 @@ class _DisasterAlertCard extends StatelessWidget {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: riskLevelColor.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            alert.icon,
-                            color: riskLevelColor,
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -542,7 +359,6 @@ class _DisasterAlertCard extends StatelessWidget {
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                   color: Color(0xFFf9fafb),
-                                  fontFamily: 'Roboto',
                                 ),
                               ),
                               const SizedBox(height: 2),
@@ -551,7 +367,6 @@ class _DisasterAlertCard extends StatelessWidget {
                                 style: const TextStyle(
                                   fontSize: 12,
                                   color: Color(0xFF9ca3af),
-                                  fontFamily: 'Roboto',
                                 ),
                               ),
                             ],
@@ -562,7 +377,6 @@ class _DisasterAlertCard extends StatelessWidget {
                           style: const TextStyle(
                             fontSize: 12,
                             color: Color(0xFF9ca3af),
-                            fontFamily: 'Roboto',
                           ),
                         ),
                       ],
@@ -574,7 +388,6 @@ class _DisasterAlertCard extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 14,
                         color: Color(0xFFd1d5db),
-                        fontFamily: 'Roboto',
                       ),
                     ),
 
@@ -592,7 +405,6 @@ class _DisasterAlertCard extends StatelessWidget {
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Color(0xFF9ca3af),
-                                  fontFamily: 'Roboto',
                                 ),
                               ),
                               const SizedBox(height: 4),
@@ -602,7 +414,6 @@ class _DisasterAlertCard extends StatelessWidget {
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
                                   color: riskLevelColor,
-                                  fontFamily: 'Roboto',
                                 ),
                               ),
                             ],
@@ -617,7 +428,6 @@ class _DisasterAlertCard extends StatelessWidget {
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Color(0xFF9ca3af),
-                                  fontFamily: 'Roboto',
                                 ),
                               ),
                               const SizedBox(height: 4),
@@ -627,7 +437,6 @@ class _DisasterAlertCard extends StatelessWidget {
                                   fontSize: 13,
                                   fontWeight: FontWeight.w500,
                                   color: Color(0xFFd1d5db),
-                                  fontFamily: 'Roboto',
                                 ),
                               ),
                             ],
@@ -642,7 +451,6 @@ class _DisasterAlertCard extends StatelessWidget {
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Color(0xFF9ca3af),
-                                  fontFamily: 'Roboto',
                                 ),
                               ),
                               const SizedBox(height: 4),
@@ -652,7 +460,6 @@ class _DisasterAlertCard extends StatelessWidget {
                                   fontSize: 13,
                                   fontWeight: FontWeight.w500,
                                   color: Color(0xFFd1d5db),
-                                  fontFamily: 'Roboto',
                                 ),
                               ),
                             ],
@@ -675,7 +482,6 @@ class _DisasterAlertCard extends StatelessWidget {
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
                                 color: Color(0xFFf59e0b),
-                                fontFamily: 'Roboto',
                               ),
                             ),
                             SizedBox(width: 4),

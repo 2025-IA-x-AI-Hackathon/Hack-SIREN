@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:sense/src/core/palette/palette.dart';
 import 'package:sense/src/features/estimator/provider/estimation_provider.dart';
 import 'package:sense/src/features/estimator/provider/provider.dart';
 
@@ -25,7 +26,7 @@ class LiveFloorBadge extends ConsumerWidget {
         : '—';
 
     final subtitle = hasProfile
-        ? '${est!.deltaMeters.toStringAsFixed(1)} m'
+        ? '${est.deltaMeters.toStringAsFixed(1)} m'
         : '미설정';
 
     Future<void> openSheet() async {
@@ -34,6 +35,7 @@ class LiveFloorBadge extends ConsumerWidget {
       try {
         final rootCtx = Navigator.of(context, rootNavigator: true).context;
         await showModalBottomSheet(
+          backgroundColor: Palette.background,
           context: rootCtx,
           useRootNavigator: true,
           isScrollControlled: true,
@@ -48,19 +50,33 @@ class LiveFloorBadge extends ConsumerWidget {
     if (compact) {
       return GestureDetector(
         onTap: openSheet,
-        child: Chip(
-          labelPadding: const EdgeInsets.symmetric(horizontal: 8),
-          avatar: const Icon(Icons.stairs_outlined, size: 18),
-          label: sheetOpen
-              ? Text(label, style: const TextStyle(fontWeight: FontWeight.w700))
-              : AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 150),
-                  child: Text(
-                    label,
-                    key: ValueKey(label),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              const Icon(Icons.stairs_outlined, size: 18, color: Colors.white),
+              SizedBox(width: 6),
+              sheetOpen
+                  ? Text(
+                      label,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    )
+                  : AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 150),
+                      child: Text(
+                        label,
+                        key: ValueKey(label),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+            ],
+          ),
         ),
       );
     }
@@ -164,28 +180,59 @@ class _BaselineSheetState extends ConsumerState<_BaselineSheet> {
           children: [
             Text(
               '기준점 보정',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
             ),
             const SizedBox(height: 12),
             ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.speed_outlined),
-              title: const Text('현재 층을 기준층(1층)으로 저장'),
+              contentPadding: EdgeInsets.symmetric(horizontal: 2),
+              title: const Text(
+                '현재 층을 기준층(1층)으로 저장',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white,
+                ),
+              ),
               subtitle: Text(
                 sensor == null
                     ? '센서값 없음'
                     : '현재 압력: ${sensor.emaHpa.toStringAsFixed(2)} hPa',
-                style: Theme.of(context).textTheme.labelSmall,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white,
+                ),
               ),
-              trailing: FilledButton.tonal(
-                onPressed: (sensor == null || _busy) ? null : _calibrateP0Only,
+              trailing: GestureDetector(
+                onTap: (sensor == null || _busy) ? null : _calibrateP0Only,
                 child: _busy
                     ? const SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('저장'),
+                    : Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Palette.textSecondary,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text(
+                          '저장',
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
               ),
             ),
           ],
