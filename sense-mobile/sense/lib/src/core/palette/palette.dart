@@ -19,6 +19,5 @@ class Palette {
   static const Color textSenary = Color(0xFF000000);
   static const Color textSeptenary = Color(0xFF000000);
   static const Color textOctonary = Color(0xFF000000);
-  static const Color splashBackground = Color(0xFFDF6257);
   static const Color listItemBackground = Color(0xFF2c2f3a);
 }

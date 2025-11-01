@@ -6,7 +6,7 @@ class MessageDto {
   final String kind;
   final String? text;
   final Map<String, dynamic>? payload;
-  final String ts; // ISO8601 string
+  final String ts;
   final bool mine;
 
   const MessageDto({

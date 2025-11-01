@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sense/src/core/palette/palette.dart';
+import 'package:sense/src/features/alert/domain/disaster_alert.dart' as alert;
+import 'package:sense/src/features/incident/provider/incident_providers.dart';
+import 'package:sense/src/features/message/domain/entities/message.dart';
+import 'package:sense/src/features/room_list/provider/room_list_provider.dart';
+import 'package:uuid/uuid.dart';
 
-enum FilterType { all, earthquake, fire, powerOutage }
+enum FilterType { all, earthquake, fire, war, unspecified }
 
 class RoomListPage extends ConsumerStatefulWidget {
   const RoomListPage({super.key});
@@ -15,89 +21,357 @@ class RoomListPage extends ConsumerStatefulWidget {
 class _RoomListPageState extends ConsumerState<RoomListPage> {
   FilterType _selectedFilter = FilterType.all;
 
+  void _handleNewChat(BuildContext context) {
+    HapticFeedback.mediumImpact();
+    final now = DateTime.now();
+    final newRoomId = 'chat-${const Uuid().v4()}';
+
+    // 상태 업데이트가 완료될 때까지 약간의 지연 후 네비게이션
+    Future.microtask(() {
+      if (context.mounted) {
+        context.push('/rooms/$newRoomId');
+      }
+    });
+  }
+
+  void _handleTestStart(BuildContext context) {
+    HapticFeedback.mediumImpact();
+
+    final now = DateTime.now();
+    final newRoomId = 'chat-${const Uuid().v4()}';
+
+    // 테스트 메시지 텍스트 설정을 위한 Provider
+    final testMessageText =
+        '2025-11-02 15:00 서울특별시 동남쪽 2km 지역 M6.3 지진/낙하물,여진주의 국민재난안전포털 참고대응 Earthquake[기상청]';
+    ref.read(initialChatMessageProvider(newRoomId).notifier).state =
+        testMessageText;
+
+    // 상태 업데이트가 완료될 때까지 약간의 지연 후 네비게이션
+    Future.microtask(() {
+      if (context.mounted) {
+        context.push('/rooms/$newRoomId');
+      }
+    });
+  }
+
+  Map<String, dynamic>? _parseDisasterAlert(alert.DisasterAlert alertData) {
+    final body = alertData.body;
+    if (body.isEmpty) return null;
+
+    // 재난 유형 파싱
+    String type = 'unspecified';
+    if (body.contains('지진') || body.contains('진도')) {
+      type = 'earthquake';
+    } else if (body.contains('화재') || body.contains('산불')) {
+      type = 'fire';
+    } else if (body.contains('전쟁') ||
+        body.contains('민방위') ||
+        body.contains('공습')) {
+      type = 'war';
+    } else if (body.contains('호우') ||
+        body.contains('폭우') ||
+        body.contains('범람')) {
+      type = 'flood';
+    } else if (body.contains('정전') || body.contains('전력')) {
+      type = 'power_outage';
+    }
+
+    // 위험 수준 파싱
+    String? riskLevel;
+    if (body.contains('위기') || body.contains('긴급') || body.contains('즉시')) {
+      riskLevel = '위기';
+    } else if (body.contains('경보') || body.contains('주의보')) {
+      riskLevel = '경보';
+    } else if (body.contains('주의')) {
+      riskLevel = '주의';
+    } else {
+      // 기본값은 경보
+      riskLevel = '경보';
+    }
+
+    // 제목 추출
+    String title = _extractTitle(body, type);
+
+    return {
+      'title': title,
+      'type': type,
+      'riskLevel': riskLevel,
+      'sender': alertData.sender,
+      'level': _riskLevelToLevel(riskLevel),
+    };
+  }
+
+  String _extractTitle(String body, String type) {
+    // 첫 줄 추출 시도
+    final lines = body
+        .split('\n')
+        .where((line) => line.trim().isNotEmpty)
+        .toList();
+    if (lines.isNotEmpty) {
+      final firstLine = lines.first.trim();
+      if (firstLine.length <= 50) {
+        return firstLine;
+      }
+      return firstLine.substring(0, 50);
+    }
+
+    // 타입별 기본 제목
+    switch (type) {
+      case 'earthquake':
+        final magnitudeMatch = RegExp(r'규모\s*([0-9.]+)').firstMatch(body);
+        if (magnitudeMatch != null) {
+          return '규모 ${magnitudeMatch.group(1)} 지진';
+        }
+        return '지진 발생';
+      case 'fire':
+        return '화재 발생';
+      case 'war':
+        return '민방위 경보';
+      case 'flood':
+        return '호우 경보';
+      case 'power_outage':
+        return '정전 발생';
+      default:
+        return '재난 경보';
+    }
+  }
+
+  String _riskLevelToLevel(String? riskLevel) {
+    switch (riskLevel) {
+      case '위기':
+        return 'critical';
+      case '경보':
+        return 'warning';
+      case '주의':
+        return 'advisory';
+      default:
+        return 'warning';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final allAlerts = _getSampleAlerts();
+    final rooms = ref.watch(roomListProvider);
+    final allAlerts = rooms.map((room) {
+      DisasterType type;
+      Color typeColor;
+      IconData icon;
+
+      switch (room.type) {
+        case 'fire':
+          type = DisasterType.fire;
+          typeColor = Colors.red;
+          icon = Icons.local_fire_department_outlined;
+          break;
+        case 'earthquake':
+          type = DisasterType.earthquake;
+          typeColor = Colors.orange;
+          icon = Icons.vibration_outlined;
+          break;
+        case 'war':
+          type = DisasterType.war;
+          typeColor = Colors.purple;
+          icon = Icons.warning_outlined;
+          break;
+        case 'unspecified':
+          type = DisasterType.unspecified;
+          typeColor = Palette.onGoing;
+          icon = Icons.help_outline;
+          break;
+        case 'flood':
+        case 'power_outage':
+        case 'chat':
+        default:
+          type = DisasterType.unspecified;
+          typeColor = Palette.onGoing;
+          icon = Icons.help_outline;
+          break;
+      }
+
+      final now = DateTime.now();
+      final difference = now.difference(room.lastTs);
+      String timestamp;
+      if (difference.inMinutes < 1) {
+        timestamp = '방금 전';
+      } else if (difference.inMinutes < 60) {
+        timestamp = '${difference.inMinutes}분 전';
+      } else if (difference.inHours < 24) {
+        timestamp = '${difference.inHours}시간 전';
+      } else if (difference.inDays < 7) {
+        timestamp = '${difference.inDays}일 전';
+      } else {
+        final year = room.lastTs.year;
+        final month = room.lastTs.month.toString().padLeft(2, '0');
+        final day = room.lastTs.day.toString().padLeft(2, '0');
+        timestamp = '$year.$month.$day';
+      }
+
+      return DisasterAlert(
+        roomId: room.roomId,
+        type: type,
+        typeColor: typeColor,
+        icon: icon,
+        title: room.title,
+        location: room.type == 'unspecified' ? '대화방' : '위치 정보',
+        timestamp: timestamp,
+        message: room.lastPreviewText.isEmpty
+            ? '메시지가 없습니다'
+            : room.lastPreviewText,
+        riskLevelLabel:
+            room.riskLevel ?? (room.type == 'unspecified' ? '대화' : '경보'),
+        status: room.active ? '진행중' : '종료',
+        occurredAt:
+            room.lastTs.hour.toString().padLeft(2, '0') +
+            ':' +
+            room.lastTs.minute.toString().padLeft(2, '0'),
+      );
+    }).toList();
+
     final filteredAlerts = _filterAlerts(allAlerts, _selectedFilter);
 
     return Scaffold(
       backgroundColor: const Color(0xFF171a21),
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _FilterChip(
-                          label: '전체',
-                          isActive: _selectedFilter == FilterType.all,
-                          onTap: () {
-                            setState(() {
-                              _selectedFilter = FilterType.all;
-                            });
-                          },
+        child: Stack(
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _FilterChip(
+                              label: '전체',
+                              isActive: _selectedFilter == FilterType.all,
+                              onTap: () {
+                                setState(() {
+                                  _selectedFilter = FilterType.all;
+                                });
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            _FilterChip(
+                              label: '지진',
+                              isActive:
+                                  _selectedFilter == FilterType.earthquake,
+                              onTap: () {
+                                setState(() {
+                                  _selectedFilter = FilterType.earthquake;
+                                });
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            _FilterChip(
+                              label: '화재',
+                              isActive: _selectedFilter == FilterType.fire,
+                              onTap: () {
+                                setState(() {
+                                  _selectedFilter = FilterType.fire;
+                                });
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            _FilterChip(
+                              label: '전쟁',
+                              isActive: _selectedFilter == FilterType.war,
+                              onTap: () {
+                                setState(() {
+                                  _selectedFilter = FilterType.war;
+                                });
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            _FilterChip(
+                              label: '미지정',
+                              isActive:
+                                  _selectedFilter == FilterType.unspecified,
+                              onTap: () {
+                                setState(() {
+                                  _selectedFilter = FilterType.unspecified;
+                                });
+                              },
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        _FilterChip(
-                          label: '지진',
-                          isActive: _selectedFilter == FilterType.earthquake,
-                          onTap: () {
-                            setState(() {
-                              _selectedFilter = FilterType.earthquake;
-                            });
-                          },
-                        ),
-                        const SizedBox(width: 8),
-                        _FilterChip(
-                          label: '화재',
-                          isActive: _selectedFilter == FilterType.fire,
-                          onTap: () {
-                            setState(() {
-                              _selectedFilter = FilterType.fire;
-                            });
-                          },
-                        ),
-                        const SizedBox(width: 8),
-                        _FilterChip(
-                          label: '정전',
-                          isActive: _selectedFilter == FilterType.powerOutage,
-                          onTap: () {
-                            setState(() {
-                              _selectedFilter = FilterType.powerOutage;
-                            });
-                          },
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
-                Expanded(
-                  child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
+                    Expanded(
+                      child: ListView.separated(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        itemCount: filteredAlerts.length,
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          return _DisasterAlertCard(
+                            alert: filteredAlerts[index],
+                          );
+                        },
+                      ),
                     ),
-                    itemCount: filteredAlerts.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      return _DisasterAlertCard(alert: filteredAlerts[index]);
-                    },
-                  ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF171a21),
+                        border: Border(
+                          top: BorderSide(color: Palette.border, width: 1),
+                        ),
+                      ),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () => _handleNewChat(context),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Palette.onGoing,
+                            foregroundColor: Palette.textPrimary,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.add_circle_outline, size: 20),
+                              SizedBox(width: 8),
+                              Text(
+                                '새 대화 시작',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
+            Positioned(
+              right: 16,
+              bottom: 80,
+              child: _TestStartButton(
+                onPressed: () => _handleTestStart(context),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -116,73 +390,18 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
           return alert.type == DisasterType.earthquake;
         case FilterType.fire:
           return alert.type == DisasterType.fire;
-        case FilterType.powerOutage:
-          return alert.type == DisasterType.powerOutage;
+        case FilterType.war:
+          return alert.type == DisasterType.war;
+        case FilterType.unspecified:
+          return alert.type == DisasterType.unspecified;
         default:
           return true;
       }
     }).toList();
   }
-
-  List<DisasterAlert> _getSampleAlerts() {
-    return [
-      DisasterAlert(
-        roomId: 'alert-fire-001',
-        type: DisasterType.fire,
-        typeColor: Colors.red,
-        icon: Icons.local_fire_department_outlined,
-        title: '대규모 산불',
-        location: '강원도 지역',
-        timestamp: '2분 전',
-        message: '주민 대피 명령 발령. 대피소 위치를 확인해주세요.',
-        riskLevelLabel: '심각',
-        status: '진압 중',
-        occurredAt: '14:28',
-      ),
-      DisasterAlert(
-        roomId: 'alert-earthquake-001',
-        type: DisasterType.earthquake,
-        typeColor: Colors.orange,
-        icon: Icons.vibration_outlined,
-        title: '규모 4.5 지진',
-        location: '경북 포항',
-        timestamp: '30분 전',
-        message: '건물 붕괴 위험. 안전한 곳으로 대피하세요.',
-        riskLevelLabel: '경보',
-        status: '여진 관찰 중',
-        occurredAt: '14:00',
-      ),
-      DisasterAlert(
-        roomId: 'alert-flood-001',
-        type: DisasterType.flood,
-        typeColor: Colors.yellow,
-        icon: Icons.flood_outlined,
-        title: '호우로 인한 하천 범람',
-        location: '수도권 지역',
-        timestamp: '2시간 전',
-        message: '저지대 주민 즉시 대피 필요.',
-        riskLevelLabel: '주의',
-        status: '대피 권고',
-        occurredAt: '12:30',
-      ),
-      DisasterAlert(
-        roomId: 'alert-power-001',
-        type: DisasterType.powerOutage,
-        typeColor: Colors.blue,
-        icon: Icons.power_off_outlined,
-        title: '대규모 정전',
-        location: '서울 및 경기 일부',
-        timestamp: '2023.10.26',
-        message: '3시간 내 복구 예상. 전력 절약 부탁드립니다.',
-        riskLevelLabel: '관찰',
-        status: '복구 중',
-        occurredAt: '2023.10.26',
-      ),
-    ];
-  }
 }
 
-enum DisasterType { fire, earthquake, flood, powerOutage }
+enum DisasterType { fire, earthquake, war, unspecified }
 
 class DisasterAlert {
   final String roomId;
@@ -253,13 +472,27 @@ class _FilterChip extends StatelessWidget {
 
 class _DisasterAlertCard extends StatelessWidget {
   const _DisasterAlertCard({required this.alert});
-
   final DisasterAlert alert;
+
+  Color _getRiskLevelColor() {
+    switch (alert.riskLevelLabel) {
+      case '경보':
+        return Colors.orange;
+      case '위기':
+        return Colors.red;
+      case '주의':
+        return Colors.green;
+      case '대화':
+      case '미지정':
+      default:
+        return Colors.grey;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final borderRadius = BorderRadius.circular(12);
-
+    final riskLevelColor = _getRiskLevelColor();
     return InkWell(
       onTap: () {
         context.push('/rooms/${alert.roomId}');
@@ -275,7 +508,7 @@ class _DisasterAlertCard extends StatelessWidget {
                 left: 0,
                 top: 0,
                 bottom: 0,
-                child: Container(width: 6, color: alert.typeColor),
+                child: Container(width: 6, color: riskLevelColor),
               ),
               Padding(
                 padding: const EdgeInsets.all(16).copyWith(left: 16 + 6),
@@ -289,12 +522,12 @@ class _DisasterAlertCard extends StatelessWidget {
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                            color: alert.typeColor.withOpacity(0.2),
+                            color: riskLevelColor.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Icon(
                             alert.icon,
-                            color: alert.typeColor,
+                            color: riskLevelColor,
                             size: 24,
                           ),
                         ),
@@ -334,6 +567,7 @@ class _DisasterAlertCard extends StatelessWidget {
                         ),
                       ],
                     ),
+
                     const SizedBox(height: 12),
                     Text(
                       alert.message,
@@ -367,7 +601,7 @@ class _DisasterAlertCard extends StatelessWidget {
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
-                                  color: alert.typeColor,
+                                  color: riskLevelColor,
                                   fontFamily: 'Roboto',
                                 ),
                               ),
@@ -455,6 +689,50 @@ class _DisasterAlertCard extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TestStartButton extends StatelessWidget {
+  const _TestStartButton({required this.onPressed});
+  final VoidCallback onPressed;
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(28),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.blue,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.play_arrow, color: Colors.white, size: 20),
+              SizedBox(width: 8),
+              Text(
+                '테스트 시작',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],

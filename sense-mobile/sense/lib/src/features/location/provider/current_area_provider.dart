@@ -3,53 +3,52 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 
 final currentAreaProvider = FutureProvider<String>((ref) async {
-  String? gu;
-  String? dong;
-
-  LocationPermission permission = await Geolocator.checkPermission();
-  if (permission == LocationPermission.denied ||
-      permission == LocationPermission.deniedForever) {
-    permission = await Geolocator.requestPermission();
+  LocationPermission perm = await Geolocator.checkPermission();
+  if (perm == LocationPermission.denied ||
+      perm == LocationPermission.deniedForever) {
+    perm = await Geolocator.requestPermission();
   }
-  if (permission == LocationPermission.denied ||
-      permission == LocationPermission.deniedForever) {
+  if (perm == LocationPermission.denied ||
+      perm == LocationPermission.deniedForever) {
     throw Exception('위치 권한 없음');
   }
   final pos = await Geolocator.getCurrentPosition(
     desiredAccuracy: LocationAccuracy.high,
   );
-  final placeMarks = await placemarkFromCoordinates(
+  final placemarks = await placemarkFromCoordinates(
     pos.latitude,
     pos.longitude,
   );
-  if (placeMarks.isEmpty) {
+  if (placemarks.isEmpty) {
     throw Exception('주소를 찾을 수 없습니다');
   }
-  final placeMark = placeMarks.first;
+  final placemark = placemarks.first;
+  String? gu;
+  String? dong;
   final guCandidates = <String?>[
-    placeMark.locality,
-    placeMark.subAdministrativeArea,
-    placeMark.subLocality,
+    placemark.locality,
+    placemark.subAdministrativeArea,
+    placemark.subLocality,
   ];
-  for (final guCandidate in guCandidates) {
-    if (guCandidate != null && guCandidate.endsWith('구')) {
-      gu = guCandidate;
+  for (final candidate in guCandidates) {
+    if (candidate != null && candidate.endsWith('구')) {
+      gu = candidate;
       break;
     }
   }
-  gu ??= placeMark.locality ?? placeMark.subAdministrativeArea ?? '';
+  gu ??= placemark.locality ?? placemark.subAdministrativeArea ?? '';
   final dongCandidates = <String?>[
-    placeMark.subLocality,
-    placeMark.thoroughfare,
-    placeMark.name,
+    placemark.subLocality,
+    placemark.thoroughfare,
+    placemark.name,
   ];
-  for (final dongCandidate in dongCandidates) {
-    if (dongCandidate != null && dongCandidate.endsWith('동')) {
-      dong = dongCandidate;
+  for (final candidate in dongCandidates) {
+    if (candidate != null && candidate.endsWith('동')) {
+      dong = candidate;
       break;
     }
   }
-  dong ??= placeMark.subLocality ?? '';
+  dong ??= placemark.subLocality ?? '';
   final pieces = [if (gu.isNotEmpty) gu, if (dong.isNotEmpty) dong];
   final areaLabel = pieces.join(' ').trim();
   if (areaLabel.isEmpty) {

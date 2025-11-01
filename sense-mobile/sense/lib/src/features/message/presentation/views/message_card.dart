@@ -22,21 +22,18 @@ class MessageCard extends StatelessWidget {
           mine: message.mine,
           ts: message.ts,
         );
-
       case MsgKind.map:
         return MapMessageLayout(
           msg: message,
           expanded: expanded,
           onTap: onToggleExpand,
         );
-
       case MsgKind.hazard:
         return HazardMessageLayout(
           msg: message,
           expanded: expanded,
           onTap: onToggleExpand,
         );
-
       case MsgKind.guideline:
         return GuidelineMessageLayout(
           msg: message,
