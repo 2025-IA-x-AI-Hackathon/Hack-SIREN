@@ -263,9 +263,6 @@ Mobile App
 
 이 규칙은 모델의 추정이 아니라 **사전 정의된 정책**으로 관리됩니다.
 
-온톨로지 및 규칙 정의는  
-[`docs/ONTOLOGY.md`](./docs/ONTOLOGY.md)에 정리되어 있습니다.
-
 
 ### 5.2 그래프 (Neo4j)
 
@@ -273,9 +270,6 @@ Mobile App
 - 각 노드는 위치 좌표, 개방 여부 등 **상태 정보를 포함**할 수 있습니다.  
 - 사용자의 좌표를 기준으로 거리 계산을 수행하여  
   실제 접근 가능한 후보지만 반환합니다.
-
-데이터 수집·정규화·적재 방식은  
-[`docs/DATA_PIPELINE.md`](./docs/DATA_PIPELINE.md)을 참고하십시오.
 
 
 ### 5.3 RAG (Chroma)
@@ -302,6 +296,7 @@ Mobile App
 │
 │
 └─ README.md                  # (현재 문서)
+
 
 
 
