@@ -112,8 +112,9 @@ Android 기기에서 수신된 재난 문자(SMS)를 자동으로 감지하고, 
 
 1. **저장소 클론**
 ```bash
-git clone <repository-url>
-cd temp_sense
+git clone https://github.com/2025-IA-x-AI-Hackathon/Hack-SIREN.git
+cd sense_mobile
+cd sense
 ```
 
 2. **의존성 설치**
@@ -163,7 +164,7 @@ flutter run
 - **feed_tab.dart**: 상세 브리핑 화면
 
 #### 4. Room List Module (`features/room_list/`)
-대화방 목록 관리 및 필터링을 담당합니다.
+대화방 목록 관리 및 테스트 로직을 생성
 
 - **room_list_page.dart**: 대화방 목록 UI
 - **room_list_provider.dart**: 대화방 상태 관리 및 CRUD
