@@ -1,5 +1,7 @@
 """Hybrid RAG 서비스 (노트북 코드 기반)"""
 import os
+import asyncio
+import logging
 from typing import List, Dict, Optional
 from neo4j import GraphDatabase
 import chromadb
@@ -9,9 +11,12 @@ from google.genai import types
 
 from config import (
     NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD,
-    CHROMA_PERSIST_DIR, GOOGLE_API_KEY,
+    CHROMA_PERSIST_DIR, CHROMA_HOST, CHROMA_PORT, CHROMA_USE_HTTP_CLIENT,
+    GOOGLE_API_KEY,
     GEMINI_MODEL, GEMINI_EMBEDDING_MODEL, EMBEDDING_DIM
 )
+
+logger = logging.getLogger(__name__)
 
 
 class GeminiEmbeddingFunction:
@@ -60,22 +65,50 @@ class HybridRAGService:
             raise ValueError("GOOGLE_API_KEY 환경변수를 설정해주세요.")
         self.gemini_client = genai.Client(api_key=GOOGLE_API_KEY)
         
-        # Chroma 연결
-        self.chroma_client = chromadb.PersistentClient(
-            path=CHROMA_PERSIST_DIR,
-            settings=Settings(anonymized_telemetry=False)
-        )
+        # Chroma 연결 (Docker 환경에서는 HttpClient, 로컬에서는 PersistentClient)
+        if CHROMA_USE_HTTP_CLIENT:
+            # Docker Compose 환경: Chroma standalone server 사용
+            self.chroma_client = chromadb.HttpClient(
+                host=CHROMA_HOST,
+                port=CHROMA_PORT,
+                settings=Settings(anonymized_telemetry=False)
+            )
+            logger.info(f"[RAG Service] Chroma HttpClient 사용: {CHROMA_HOST}:{CHROMA_PORT}")
+        else:
+            # 로컬 환경: PersistentClient 사용
+            self.chroma_client = chromadb.PersistentClient(
+                path=CHROMA_PERSIST_DIR,
+                settings=Settings(anonymized_telemetry=False)
+            )
+            logger.info(f"[RAG Service] Chroma PersistentClient 사용: {CHROMA_PERSIST_DIR}")
+        
         self.gemini_embedding_fn = GeminiEmbeddingFunction(self.gemini_client)
         
         # 컬렉션 가져오기
         try:
             self.chroma_collection = self.chroma_client.get_collection("disaster_docs")
+            logger.info("[RAG Service] 기존 Chroma 컬렉션 로드: disaster_docs")
         except:
-            # 컬렉션이 없으면 생성 (임베딩 함수와 함께)
-            self.chroma_collection = self.chroma_client.create_collection(
-                name="disaster_docs",
-                embedding_function=self.gemini_embedding_fn
-            )
+            # 컬렉션이 없으면 생성
+            # HttpClient는 embedding_function을 직접 지원하지 않으므로, 
+            # 임베딩은 별도로 처리하도록 빈 컬렉션 생성
+            try:
+                if CHROMA_USE_HTTP_CLIENT:
+                    # HttpClient는 embedding_function 파라미터 미지원
+                    self.chroma_collection = self.chroma_client.create_collection("disaster_docs")
+                else:
+                    # PersistentClient는 embedding_function 지원
+                    self.chroma_collection = self.chroma_client.create_collection(
+                        name="disaster_docs",
+                        embedding_function=self.gemini_embedding_fn
+                    )
+                logger.info("[RAG Service] 새 Chroma 컬렉션 생성: disaster_docs")
+            except Exception as e:
+                logger.error(f"[RAG Service] Chroma 컬렉션 생성 오류: {e}")
+                raise
+        
+        # Neo4j 스키마 캐싱 (매번 조회하지 않도록)
+        self._schema_cache = None
     
     def get_neo4j_session(self):
         """Neo4j 세션 가져오기"""
@@ -170,6 +203,7 @@ class HybridRAGService:
 
 Cypher 쿼리:
 """
+
         
         try:
             response = self.gemini_client.models.generate_content(
@@ -272,13 +306,138 @@ Cypher 쿼리:
                 "error": str(e)
             }
     
-    def search(self, question: str) -> Dict:
-        """Hybrid RAG 검색 실행"""
-        with self.get_neo4j_session() as session:
-            schema = self.get_neo4j_schema(session)
+    async def search_sub_problems(self, sub_problems: List[Dict], schema: str, session, use_cache: bool = True) -> Dict:
+        """서브 문제별 Hybrid RAG 검색 실행 (노트북 방식)
+        
+        Args:
+            sub_problems: PlanningAgent가 생성한 서브 문제 리스트
+            schema: Neo4j 스키마
+            session: Neo4j 세션
+            use_cache: 스키마 캐시 사용 여부 (기본값: True)
+        
+        Returns:
+            각 서브 문제별 검색 결과
+        """
+        all_graph_results = []
+        all_vector_results = []
+        
+        for sub_problem in sub_problems:
+            sub_id = sub_problem.get("id", 0)
+            sub_question = sub_problem.get("question", "")
+            graph_search_info = sub_problem.get("graph_search", {})
+            vector_search_info = sub_problem.get("vector_search", {})
             
-            graph_results = self.graph_rag_search(question, schema, session)
-            vector_results = self.vector_rag_search(question)
+            logger.info(f"[RAG Service] 서브 문제 {sub_id} 검색: {sub_question[:50]}...")
+            
+            # Graph RAG 검색: 서브 문제의 question + graph_search 정보 활용하여 질문 구성
+            # graph_search_info의 query_intent, specific_info, region_filter 등을 활용
+            graph_query = sub_question
+            if graph_search_info.get("query_intent"):
+                # query_intent가 있으면 더 구체적인 질문 구성
+                query_intent = graph_search_info.get("query_intent", "")
+                region_filter = graph_search_info.get("region_filter")
+                specific_info = graph_search_info.get("specific_info", "")
+                
+                # 지역 필터가 있으면 질문에 명시
+                if region_filter:
+                    graph_query = f"{sub_question} (지역: {region_filter})"
+                elif specific_info:
+                    graph_query = f"{sub_question} ({specific_info})"
+                
+                logger.debug(f"[RAG Service] 서브 문제 {sub_id} Graph RAG 쿼리: {graph_query}")
+            
+            graph_results = await asyncio.to_thread(
+                self.graph_rag_search, graph_query, schema, session
+            )
+            graph_results["sub_problem_id"] = sub_id
+            graph_results["sub_question"] = sub_question
+            graph_results["graph_search_info"] = graph_search_info
+            all_graph_results.append(graph_results)
+            
+            # Vector RAG 검색: 서브 문제의 question + vector_search 정보 활용하여 질문 구성
+            # vector_search_info의 keywords, focus, situation_context 등을 활용
+            vector_query = sub_question
+            if vector_search_info.get("keywords"):
+                # keywords가 있으면 질문에 키워드 추가
+                keywords = vector_search_info.get("keywords", [])
+                if isinstance(keywords, list):
+                    keyword_str = " ".join(keywords)
+                    vector_query = f"{sub_question} {keyword_str}"
+                elif isinstance(keywords, str):
+                    vector_query = f"{sub_question} {keywords}"
+            
+            if vector_search_info.get("situation_context"):
+                # 상황 정보가 있으면 추가
+                situation = vector_search_info.get("situation_context")
+                vector_query = f"{vector_query} 상황: {situation}"
+            
+            top_k = vector_search_info.get("top_k", 5)
+            logger.debug(f"[RAG Service] 서브 문제 {sub_id} Vector RAG 쿼리: {vector_query} (top_k: {top_k})")
+            
+            vector_results = await asyncio.to_thread(
+                self.vector_rag_search, vector_query, top_k
+            )
+            vector_results["sub_problem_id"] = sub_id
+            vector_results["sub_question"] = sub_question
+            vector_results["vector_search_info"] = vector_search_info
+            all_vector_results.append(vector_results)
+        
+        # 모든 결과 통합 (평탄화)
+        all_graph_records = []
+        for r in all_graph_results:
+            if r.get("results"):
+                all_graph_records.extend(r["results"])
+        
+        all_vector_docs = []
+        for r in all_vector_results:
+            if r.get("results"):
+                all_vector_docs.extend(r["results"])
+        
+        combined_graph_results = {
+            "query": "서브 문제별 통합 쿼리",
+            "results": all_graph_records,
+            "count": len(all_graph_records),
+            "sub_problem_results": all_graph_results  # 서브 문제별 상세 결과
+        }
+        
+        combined_vector_results = {
+            "results": all_vector_docs,
+            "count": len(all_vector_docs),
+            "sub_problem_results": all_vector_results  # 서브 문제별 상세 결과
+        }
+        
+        return {
+            "graph_results": combined_graph_results,
+            "vector_results": combined_vector_results
+        }
+    
+    async def search(self, question: str, use_cache: bool = True) -> Dict:
+        """Hybrid RAG 검색 실행 (기본 방식 - 단일 질문)
+        
+        Args:
+            question: 검색 질문
+            use_cache: 스키마 캐시 사용 여부 (기본값: True)
+        """
+        with self.get_neo4j_session() as session:
+            # 스키마 캐싱: 매번 조회하지 않고 캐시 사용
+            if use_cache and self._schema_cache:
+                schema = self._schema_cache
+            else:
+                schema = await asyncio.to_thread(self.get_neo4j_schema, session)
+                if use_cache:
+                    self._schema_cache = schema
+            
+            # 병렬 검색 (Graph RAG와 Vector RAG 동시 실행)
+            graph_task = asyncio.to_thread(
+                self.graph_rag_search, question, schema, session
+            )
+            vector_task = asyncio.to_thread(
+                self.vector_rag_search, question
+            )
+            
+            graph_results, vector_results = await asyncio.gather(
+                graph_task, vector_task
+            )
             
             return {
                 "graph_results": graph_results,

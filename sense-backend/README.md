@@ -1,92 +1,129 @@
-# SENSE Backend - 재난 대응 행동 에이전트
+# SENSE Backend
 
-재난 문자와 사용자 질문을 모두 처리하는 에이전트 시스템입니다.
+재난 대응 행동 에이전트 백엔드 시스템
 
-## 아키텍처
+## 환경 설정
 
-- **ProfileAgent**: 입력 분석 (재난 문자 또는 사용자 질문)
-- **PlanningAgent**: 검색 계획 수립
-- **AnalystAgent**: Graph RAG + Vector RAG 검색 실행
-- **AdvisorAgent**: 행동지침 생성 (immediate/next/caution)
-- **Orchestrator**: LangGraph를 사용한 에이전트 순서 보장
+### Docker Compose 사용 (권장)
 
-## 설치
-
+1. 환경 변수 설정:
 ```bash
+cp .env.example .env
+# .env 파일을 편집하여 GOOGLE_API_KEY 설정
+```
+
+2. Docker Compose로 모든 서비스 실행:
+```bash
+docker compose up -d
+```
+
+3. 서비스 상태 확인:
+```bash
+docker compose ps
+```
+
+4. 로그 확인:
+```bash
+docker compose logs -f api
+```
+
+### 로컬 개발 환경
+
+1. Python 가상환경 설정:
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-## 환경 변수 설정
-
-`.env` 파일 생성:
-
-```env
-GOOGLE_API_KEY=your_gemini_api_key
-NEO4J_URI=bolt://localhost:7687
-NEO4J_USER=neo4j
-NEO4J_PASSWORD=password
-```
-
-## 실행
-
+2. 환경 변수 설정:
 ```bash
-python backend/main.py
+cp .env.example .env
+# .env 파일을 편집하여 필요한 변수 설정
 ```
 
-또는:
+3. Neo4j 및 Chroma 로컬 실행:
+- Neo4j: Docker 또는 로컬 설치
+- Chroma: 로컬 실행 (PersistentClient 사용)
 
+4. API 서버 실행:
 ```bash
-uvicorn api:app --host 0.0.0.0 --port 8000
+python main.py
 ```
+
+## 서비스 포트
+
+- **API**: http://localhost:8000
+- **Neo4j Browser**: http://localhost:7474
+- **Neo4j Bolt**: bolt://localhost:7687
+- **Chroma**: http://localhost:8001
 
 ## API 엔드포인트
 
 ### POST /chat
-
-채팅 요청:
-
-```json
-{
-  "message": "지진 발생 시 어떻게 해야 하나요?",
-  "conversation_id": "user123",
-  "history": []
-}
-```
-
-응답:
+채팅 메시지 전송
 
 ```json
 {
-  "answer": "## 즉시 행동 (IMMEDIATE)\n1. ...",
-  "immediate": ["즉시 행동 1", "즉시 행동 2"],
-  "next": ["다음 단계 1"],
-  "caution": ["주의사항 1"],
-  "explanation": {
-    "profile": {...},
-    "planning": {...},
-    "analysis": {...},
-    "advisory": {...}
+  "message": "지진이 발생했을 때 가까운 대피소를 찾고 싶어요",
+  "user_info": {
+    "lat": 37.5665,
+    "lon": 126.9780,
+    "floor": 3
   },
   "conversation_id": "user123"
 }
 ```
 
 ### GET /health
-
 헬스 체크
 
 ### GET /conversations/{conversation_id}
-
 대화 히스토리 조회
 
-### DELETE /conversations/{conversation_id}
+## Docker 명령어
 
-대화 히스토리 삭제
+```bash
+# 서비스 시작
+docker compose up -d
 
-## 특징
+# 서비스 중지
+docker compose down
 
-- 재난 문자와 사용자 질문 모두 처리 가능
-- 단일 대화 및 멀티턴 대화 지원
-- Explainability 추적 (각 에이전트의 추론 과정 기록)
-- LLM 기반 생성 (루틴베이스 최소화)
-- LangGraph를 사용한 엄격한 순서 보장
+# 서비스 재시작
+docker compose restart
+
+# 특정 서비스 재빌드
+docker compose build api
+docker compose up -d api
+
+# 로그 확인
+docker compose logs -f api
+docker compose logs -f neo4j
+docker compose logs -f chroma
+
+# 데이터 볼륨 확인
+docker volume ls
+
+# 데이터 볼륨 삭제 (주의: 모든 데이터 삭제됨)
+docker compose down -v
+```
+
+## 개발 팁
+
+1. **API 코드 수정 후 재시작**:
+   ```bash
+   docker compose restart api
+   ```
+
+2. **Neo4j 데이터 초기화**:
+   ```bash
+   docker compose down neo4j
+   docker volume rm backend_neo4j_data
+   docker compose up -d neo4j
+   ```
+
+3. **Chroma 데이터 확인**:
+   ```bash
+   docker compose exec chroma ls -la /chroma/chroma
+   ```

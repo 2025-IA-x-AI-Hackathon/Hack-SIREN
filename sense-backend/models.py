@@ -17,17 +17,11 @@ class Message(BaseModel):
     content: str
 
 
-class DisasterMessageType(str, Enum):
-    """재난 메시지 유형"""
-    DISASTER_ALERT = "disaster_alert"  # 재난 문자
-    USER_QUESTION = "user_question"    # 사용자 질문
-
-
-class ProfileResult(BaseModel):
-    """ProfileAgent 결과"""
-    message_type: DisasterMessageType
-    extracted_info: Dict[str, Any]
-    reasoning: str
+class UserInfo(BaseModel):
+    """사용자 정보"""
+    lat: float  # 위도
+    lon: float  # 경도
+    floor: int  # 층수
 
 
 class PlanningResult(BaseModel):
@@ -47,13 +41,14 @@ class AdvisoryResult(BaseModel):
     """AdvisorAgent 결과"""
     conclusion: str  # 핵심 결론 (3-5문장)
     evidence: str    # 추론한 증거만
+    places_reference: Optional[Dict[str, Dict[str, Any]]] = None  # 결론에 언급된 장소들의 레퍼런스
 
 
 class ConversationState(BaseModel):
     """대화 상태 (LangGraph용)"""
     messages: List[Message]
     input: str
-    profile: Optional[ProfileResult] = None
+    user_info: Optional[UserInfo] = None
     planning: Optional[PlanningResult] = None
     analysis: Optional[AnalysisResult] = None
     advisory: Optional[AdvisoryResult] = None

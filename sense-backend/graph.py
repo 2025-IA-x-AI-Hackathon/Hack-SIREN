@@ -2,12 +2,12 @@
 from typing import TypedDict, Annotated, Optional
 from langgraph.graph import StateGraph, END
 import operator
+import asyncio
 
 from models import (
-    ConversationState, ProfileResult, PlanningResult,
+    ConversationState, UserInfo, PlanningResult,
     AnalysisResult, AdvisoryResult, Message, MessageRole
 )
-from agents.profile_agent import ProfileAgent
 from agents.planning_agent import PlanningAgent
 from agents.analyst_agent import AnalystAgent
 from agents.advisor_agent import AdvisorAgent
@@ -17,7 +17,7 @@ class State(TypedDict):
     """LangGraph 상태"""
     messages: Annotated[list, operator.add]
     input: str
-    profile: Optional[ProfileResult]
+    user_info: Optional[dict]  # {"lat": float, "lon": float, "floor": int}
     planning: Optional[PlanningResult]
     analysis: Optional[AnalysisResult]
     advisory: Optional[AdvisoryResult]
@@ -28,7 +28,6 @@ class Orchestrator:
     """Orchestrator - 에이전트 순서 보장"""
     
     def __init__(self):
-        self.profile_agent = ProfileAgent()
         self.planning_agent = PlanningAgent()
         self.analyst_agent = AnalystAgent()
         self.advisor_agent = AdvisorAgent()
@@ -41,52 +40,25 @@ class Orchestrator:
         workflow = StateGraph(State)
         
         # 노드 추가 (순서 보장)
-        workflow.add_node("profile", self._profile_node)
         workflow.add_node("planning", self._planning_node)
         workflow.add_node("analysis", self._analysis_node)
         workflow.add_node("advisor", self._advisor_node)
         
         # 엣지 추가 (순차 실행)
-        workflow.set_entry_point("profile")
-        workflow.add_edge("profile", "planning")
+        workflow.set_entry_point("planning")
         workflow.add_edge("planning", "analysis")
         workflow.add_edge("analysis", "advisor")
         workflow.add_edge("advisor", END)
         
         return workflow.compile()
     
-    def _profile_node(self, state: State) -> State:
-        """ProfileAgent 노드"""
-        conversation_history = [
-            {"role": msg.role.value, "content": msg.content}
-            for msg in state.get("messages", [])
-        ]
-        
-        profile_result = self.profile_agent.analyze(
-            state["input"],
-            conversation_history
-        )
-        
-        # Explanation 업데이트
-        explanation = state.get("explanation", {})
-        explanation["profile"] = {
-            "message_type": profile_result.message_type.value,
-            "extracted_info": profile_result.extracted_info,
-            "reasoning": profile_result.reasoning
-        }
-        
-        return {
-            "profile": profile_result,
-            "explanation": explanation
-        }
-    
-    def _planning_node(self, state: State) -> State:
+    async def _planning_node(self, state: State) -> State:
         """PlanningAgent 노드"""
-        profile = state["profile"]
+        user_info = state.get("user_info")
         
-        planning_result = self.planning_agent.plan(
+        planning_result = await self.planning_agent.plan(
             state["input"],
-            profile
+            user_info
         )
         
         # Explanation 업데이트
@@ -101,14 +73,14 @@ class Orchestrator:
             "explanation": explanation
         }
     
-    def _analysis_node(self, state: State) -> State:
+    async def _analysis_node(self, state: State) -> State:
         """AnalystAgent 노드"""
-        profile = state["profile"]
+        user_info = state.get("user_info")
         planning = state["planning"]
         
-        analysis_result = self.analyst_agent.analyze(
+        analysis_result = await self.analyst_agent.analyze(
             state["input"],
-            profile,
+            user_info,
             planning
         )
         
@@ -125,24 +97,36 @@ class Orchestrator:
             "explanation": explanation
         }
     
-    def _advisor_node(self, state: State) -> State:
+    async def _advisor_node(self, state: State) -> State:
         """AdvisorAgent 노드"""
-        profile = state["profile"]
+        user_info = state.get("user_info")
         planning = state["planning"]
         analysis = state["analysis"]
         
-        advisory_result = self.advisor_agent.advise(
+        # location_info 생성 (user_info가 있는 경우)
+        location_info = None
+        if user_info:
+            location_info = {
+                "lat": user_info.get("lat"),
+                "lon": user_info.get("lon"),
+                "floor": user_info.get("floor"),
+                "radius_km": 5.0  # 기본 반경 5km
+            }
+        
+        advisory_result = await self.advisor_agent.infer(
             state["input"],
-            profile,
+            None,  # profile 제거
             planning,
-            analysis
+            analysis,
+            location_info
         )
         
         # Explanation 업데이트
         explanation = state.get("explanation", {})
         explanation["advisory"] = {
             "conclusion": advisory_result.conclusion,
-            "evidence": advisory_result.evidence
+            "evidence": advisory_result.evidence,
+            "places_reference": advisory_result.places_reference
         }
         
         # 응답 메시지 생성
@@ -175,7 +159,7 @@ class Orchestrator:
         
         return "\n".join(parts)
     
-    def process(self, input_text: str, conversation_history: list = None) -> dict:
+    async def process(self, input_text: str, conversation_history: list = None, user_info: dict = None) -> dict:
         """대화 처리 (단일/멀티턴 지원)"""
         # 초기 상태 설정
         messages = []
@@ -198,15 +182,20 @@ class Orchestrator:
         initial_state = State(
             messages=messages,
             input=input_text,
-            profile=None,
+            user_info=user_info,  # 좌표와 층수 정보
             planning=None,
             analysis=None,
             advisory=None,
             explanation={}
         )
         
-        # Graph 실행
-        result = self.graph.invoke(initial_state)
+        # Graph 실행 (async 지원 여부에 따라)
+        try:
+            # LangGraph가 async를 지원하는 경우
+            result = await self.graph.ainvoke(initial_state)
+        except AttributeError:
+            # async를 지원하지 않는 경우 동기 함수를 비동기로 실행
+            result = await asyncio.to_thread(self.graph.invoke, initial_state)
         
         # 최종 응답 생성
         advisory = result["advisory"]
@@ -216,6 +205,7 @@ class Orchestrator:
             "answer": response_text,
             "conclusion": advisory.conclusion,
             "evidence": advisory.evidence,
-            "explanation": result["explanation"]
+            "explanation": result["explanation"],
+            "places_reference": advisory.places_reference
         }
 
