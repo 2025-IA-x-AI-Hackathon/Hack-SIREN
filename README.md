@@ -3,6 +3,8 @@
 SENSE는 재난 상황에서 사용자의 현재 위치와 상태를 바탕으로, **즉시 수행 가능한 행동 지침**과 **이동 가능한 대피 거점**을 안내하는 시스템입니다.  
 본 프로젝트는 **그래프 DB**, **RAG (Retrieval-Augmented Generation)**, **온톨로지 기반 규칙**, **멀티 에이전트 LLM 파이프라인**으로 구성됩니다.
 
+![앱 이미지](./assets/app_image.png)
+
 이 문서는 전체 개요를 설명합니다.  
 상세 구현은 각 하위 문서를 참고하십시오:
 
@@ -161,9 +163,6 @@ Mobile App
 - `Orchestrator` 단계에서 최종 응답은  
   **모바일 UI 컴포넌트에서 그대로 렌더링 가능한 형태(JSON)** 로 변환됩니다.
 
-보다 상세한 아키텍처 설명은  
-[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)를 참고하십시오.
-
 
 ## 4. 구성 요소별 역할
 
@@ -297,4 +296,6 @@ Mobile App
 │  ├─ ONTOLOGY.md             # 온톨로지(행동 규칙, 금지/우선순위 모델)
 │  └─ DATA_PIPELINE.md        # 공공데이터 정규화 및 그래프 적재 방식
 │
+
 └─ README.md                  # (현재 문서)
+
