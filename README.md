@@ -163,6 +163,8 @@ Mobile App
 - `Orchestrator` 단계에서 최종 응답은  
   **모바일 UI 컴포넌트에서 그대로 렌더링 가능한 형태(JSON)** 로 변환됩니다.
 
+![앱 이미지](./assets/architecture.webp)
+
 
 ## 4. 구성 요소별 역할
 
@@ -298,4 +300,5 @@ Mobile App
 │
 
 └─ README.md                  # (현재 문서)
+
 
