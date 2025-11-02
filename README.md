@@ -293,12 +293,8 @@ Mobile App
 ├─ sense-backend/             # FastAPI 백엔드 + 에이전트 파이프라인
 │  └─ README.md               # /query 동작 방식, 에이전트 단계, 예시 요청/응답
 │
-├─ docs/
-│  ├─ ARCHITECTURE.md         # 전체 아키텍처 상세 / 데이터 플로우 / 계층 구조
-│  ├─ ONTOLOGY.md             # 온톨로지(행동 규칙, 금지/우선순위 모델)
-│  └─ DATA_PIPELINE.md        # 공공데이터 정규화 및 그래프 적재 방식
 │
-
 └─ README.md                  # (현재 문서)
+
 
 
