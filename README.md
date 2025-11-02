@@ -4,45 +4,17 @@
 
 ## 참여자
 
-<table>
-  <tr>
-    <td align="center">
-      <a href="https://github.com/jgim">
-        <img src="https://github.com/jgim.png" width="60"/><br/>
-        <b>jgim</b><br/>
-        김종석
-      </a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/silim124">
-        <img src="https://github.com/silim124.png" width="60"/><br/>
-        <b>silim124</b><br/>
-        임시은
-      </a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/RIIZE0904">
-        <img src="https://github.com/RIIZE0904.png" width="60"/><br/>
-        <b>RIIZE0904</b><br/>
-        김현서
-      </a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/seok541hyun">
-        <img src="https://github.com/seok541hyun.png" width="60"/><br/>
-        <b>seok541hyun</b><br/>
-        윤석현
-      </a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/Cicada31113">
-        <img src="https://github.com/Cicada31113.png" width="60"/><br/>
-        <b>Cicada31113</b><br/>
-        권덕현
-      </a>
-    </td>
-  </tr>
-</table>
+<p align="center">
+  <a href="https://github.com/jgim"><img src="https://github.com/jgim.png" width="60"/><br/><b>jgim</b><br/>김종석</a>
+  &nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/silim124"><img src="https://github.com/silim124.png" width="60"/><br/><b>silim124</b><br/>임시은</a>
+  &nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/RIIZE0904"><img src="https://github.com/RIIZE0904.png" width="60"/><br/><b>RIIZE0904</b><br/>김현서</a>
+  &nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/seok541hyun"><img src="https://github.com/seok541hyun.png" width="60"/><br/><b>seok541hyun</b><br/>윤석현</a>
+  &nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/Cicada31113"><img src="https://github.com/Cicada31113.png" width="60"/><br/><b>Cicada31113</b><br/>권덕현</a>
+</p>
 
 
 
@@ -343,5 +315,6 @@ Mobile App
 │
 └─ README.md                  # (현재 문서)
 ```
+
 
 
